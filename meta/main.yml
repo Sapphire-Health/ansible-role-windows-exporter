@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  license: MIT
+  min_ansible_version: "2.10"
+  role_name: prometheus
+  author: Lyas Spiehler
+  description: Ansible role for deploying the windows_exporter to Windows hosts
+  company: Sapphire Health
+# collections: []
+# dependencies: []
+...

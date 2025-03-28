@@ -1,0 +1,167 @@
+---
+- name: Get latest version
+  when: windows_exporter_version == 'latest'
+  block:
+    - name: Make sure required variables are defined
+      ansible.builtin.uri:
+        url: https://api.github.com/repos/prometheus-community/windows_exporter/releases
+        return_content: true
+      register: releases
+      delegate_to: localhost
+
+    - name: Set version to latest
+      ansible.builtin.set_fact:
+        version: "{{ releases.json[0].tag_name[1:] }}"
+
+- name: Set version to supplied version
+  ansible.builtin.set_fact:
+    version: "{{ windows_exporter_version }}"
+  when: windows_exporter_version != 'latest'
+  delegate_to: localhost
+
+- name: Show version
+  ansible.builtin.debug:
+    msg: "Version: {{ version }}"
+  delegate_to: localhost
+
+- name: Check if windows_exporter download is already cached
+  ansible.builtin.stat:
+    path: "/tmp/windows_exporter-{{ version }}-{{ windows_exporter_arch }}.msi"
+  register: st
+  delegate_to: localhost
+  run_once: true
+
+# - name: Show stat
+#   ansible.builtin.debug:
+#     msg: "{{ st }}"
+#   delegate_to: localhost
+
+- name: Download windows_exporter
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus-community/windows_exporter/releases/download/v0.30.5/windows_exporter-{{ version }}-{{ windows_exporter_arch }}.msi"
+    dest: "/tmp/windows_exporter-{{ version }}-{{ windows_exporter_arch }}.msi"
+    mode: '0440'
+  delegate_to: localhost
+  when: not st.stat.exists
+  run_once: true
+
+- name: Check if install directory exists
+  ansible.windows.win_stat:
+    path: "{{ windows_exporter_install_dir }}"
+  register: installdir
+
+- name: Create install directory if it doesn't exist
+  ansible.windows.win_file:
+    path: "{{ windows_exporter_install_dir }}"
+    state: directory
+  when: not installdir.stat.exists
+
+- name: Check if forcing cert renewal
+  ansible.builtin.set_fact:
+    renew_cert: "{{ force_cert_renewal | default(false) }}"
+
+- name: Check if ca file exists
+  ansible.windows.win_stat:
+    path: "{{ windows_exporter_install_dir }}/ca.crt"
+  register: file_ca
+
+- name: Check if cert file exists
+  ansible.windows.win_stat:
+    path: "{{ windows_exporter_install_dir }}/cert.crt"
+  register: file_cert
+
+- name: Check if key file exists
+  ansible.windows.win_stat:
+    path: "{{ windows_exporter_install_dir }}/cert.key"
+  register: file_key
+
+- name: Generate certificates
+  when: not file_ca.stat.exists or not file_cert.stat.exists or not file_key.stat.exists or renew_cert
+  vars:
+    sans: windows_exporter_sans
+    # key_usage:
+    #   - digitalSignature
+    #   - keyEncipherment
+    # key_usage_critical: true
+    # extended_key_usage:
+    #   - serverAuth
+  block:
+    - name: Get SANs
+      ansible.builtin.set_fact:
+        windows_exporter_sans: "{{ windows_exporter_sans + [item] }}"
+      loop:
+        - "DNS:{{ ansible_fqdn | default(inventory_hostname) }}"
+        - "DNS:{{ inventory_hostname }}"
+        - "DNS:{{ inventory_hostname_short }}"
+        - "DNS:{{ ansible_default_ipv4.address | default(ansible_all_ipv4_addresses[0] | default(ansible_host)) }}"
+      when: item not in windows_exporter_sans
+      delegate_to: localhost
+
+    - name: Show SANs
+      ansible.builtin.debug:
+        msg: "{{ windows_exporter_sans }}"
+      delegate_to: localhost
+
+    - name: Issue certificate
+      vars:
+        sans: "{{ windows_exporter_sans }}"
+      block:
+        - name: Issue certificate
+          ansible.builtin.include_role:
+            name: certificate_authority
+            tasks_from: issue_certificate.yml
+
+    - name: Write ca file
+      ansible.windows.win_copy:
+        content: "{{ ca_certificate }}"
+        dest: "{{ windows_exporter_install_dir }}/ca.crt"
+    - name: Write cert file
+      ansible.windows.win_copy:
+        content: "{{ leaf.certificate }}"
+        dest: "{{ windows_exporter_install_dir }}/cert.crt"
+    - name: Write key file
+      ansible.windows.win_copy:
+        content: "{{ leaf_key.privatekey }}"
+        dest: "{{ windows_exporter_install_dir }}/cert.key"
+
+- name: Install windows_exporter
+  when: cert_only is not defined or not cert_only
+  block:
+    - name: Show config vars
+      ansible.builtin.debug:
+        msg: >
+          "Using template {{ prometheus_config | default('config.yml.j2') }}"
+          "with the following enabled collectors: {{ windows_exporter_enabled_collectors }}"
+
+    - name: Create config.yml
+      ansible.windows.win_template:
+        src: "{{ prometheus_config | default('config.yml.j2') }}"
+        dest: "{{ windows_exporter_install_dir }}/config.yml"
+
+    - name: Create web-config.yml
+      ansible.windows.win_template:
+        src: web-config.yml.j2
+        dest: "{{ windows_exporter_install_dir }}/web-config.yml"
+
+    - name: Copy a single file
+      ansible.windows.win_copy:
+        src: "/tmp/windows_exporter-{{ version }}-{{ windows_exporter_arch }}.msi"
+        dest: "C:\\Windows\\Temp\\windows_exporter-{{ version }}-{{ windows_exporter_arch }}.msi"
+
+    - name: Install/Update windows_exporter
+      # win_command: "C:/Windows/Temp/{{ package_name }} {{ install_params }}"
+      ansible.windows.win_package:
+        path: "C:\\Windows\\Temp\\windows_exporter-{{ version }}-{{ windows_exporter_arch }}.msi"
+        # product_id: "{{ product_id }}"
+        state: present
+        arguments: "{{ windows_exporter_install_params }}"
+
+    - name: Delete windows_exporter msi
+      ansible.windows.win_file:
+        path: "C:\\Windows\\Temp\\windows_exporter-{{ version }}-{{ windows_exporter_arch }}.msi"
+        state: absent
+
+- name: Restart a service
+  ansible.windows.win_service:
+    name: windows_exporter
+    state: restarted

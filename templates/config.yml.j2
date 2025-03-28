@@ -1,0 +1,8 @@
+collectors:
+  enabled: {{ windows_exporter_enabled_collectors }}
+log:
+  level: warn
+telemetry:
+  addr: ":9182"
+  path: /metrics
+  max-requests: 5
