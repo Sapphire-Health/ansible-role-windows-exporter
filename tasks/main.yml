@@ -144,8 +144,6 @@
       # win_command: "C:/Windows/Temp/{{ package_name }} {{ install_params }}"
       ansible.windows.win_package:
         path: "C:\\Windows\\Temp\\windows_exporter-{{ version }}-{{ windows_exporter_arch }}.msi"
-        # product_id: "{{ product_id }}"
-        log_path: "C:\\Temp\\windows_exporter_install.log"
         state: present
         arguments: "{{ windows_exporter_install_params }}"
 
