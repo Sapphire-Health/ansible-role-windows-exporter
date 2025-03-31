@@ -77,14 +77,6 @@
 
 - name: Generate certificates
   when: not file_ca.stat.exists or not file_cert.stat.exists or not file_key.stat.exists or renew_cert
-  vars:
-    sans: windows_exporter_sans
-    # key_usage:
-    #   - digitalSignature
-    #   - keyEncipherment
-    # key_usage_critical: true
-    # extended_key_usage:
-    #   - serverAuth
   block:
     - name: Get SANs
       ansible.builtin.set_fact:
@@ -153,6 +145,7 @@
       ansible.windows.win_package:
         path: "C:\\Windows\\Temp\\windows_exporter-{{ version }}-{{ windows_exporter_arch }}.msi"
         # product_id: "{{ product_id }}"
+        log_path: "C:\\Temp\\windows_exporter_install.log"
         state: present
         arguments: "{{ windows_exporter_install_params }}"
 
