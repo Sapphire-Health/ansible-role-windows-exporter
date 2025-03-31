@@ -3,10 +3,11 @@ windows_exporter_version: latest
 windows_exporter_arch: amd64
 windows_exporter_install_dir: C:\Program Files\windows_exporter
 windows_exporter_enabled_collectors: "cpu,cs,physical_disk,logical_disk,os,system,dhcp,net"
-windows_exporter_install_params: >
-  "ADDLOCAL=FirewallException"
-  "CONFIG_FILE=\"C:\\Program Files\\windows_exporter\\config.yml\"
-  "EXTRA_FLAGS=\"--web.config.file \"\"C:\\Program Files\\windows_exporter\\web-config.yml\"\"\""
+windows_exporter_install_params: "ADDLOCAL=FirewallException CONFIG_FILE=\"C:\\Program Files\\windows_exporter\\config.yml\" EXTRA_FLAGS=\"--web.config.file \"\"C:\\Program Files\\windows_exporter\\web-config.yml\"\"\""
+# windows_exporter_install_params: >
+#   ADDLOCAL=FirewallException
+#   CONFIG_FILE="C:\Program Files\windows_exporter\config.yml"
+#   EXTRA_FLAGS="--web.config.file \"C:\Program Files\windows_exporter\web-config.yml\""
 key_usage:
   - digitalSignature
   - keyEncipherment
