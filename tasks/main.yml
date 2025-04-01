@@ -135,7 +135,7 @@
         src: web-config.yml.j2
         dest: "{{ windows_exporter_install_dir }}/web-config.yml"
 
-    - name: Copy a single file
+    - name: Copy the installer to the target machine
       ansible.windows.win_copy:
         src: "/tmp/windows_exporter-{{ version }}-{{ windows_exporter_arch }}.msi"
         dest: "C:\\Windows\\Temp\\windows_exporter-{{ version }}-{{ windows_exporter_arch }}.msi"
